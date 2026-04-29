@@ -63,10 +63,14 @@ if $integration; then
         echo "[check] docker not found — cannot run --integration" >&2
         exit 3
     fi
-    step "docker compose up Kafka"
-    docker compose -f "$ROOT/docker/compose.yaml" up -d --wait
-    trap 'docker compose -f "$ROOT/docker/compose.yaml" down -v >/dev/null 2>&1 || true' EXIT
-    step "integration tests (placeholder — wired in step 8)"
+    if ! docker info >/dev/null 2>&1; then
+        echo "[check] docker daemon not reachable — start Docker first" >&2
+        exit 3
+    fi
+    step "integration tests (testcontainers manages its own Kafka)"
+    # Each integration test boots its own ephemeral Kafka via testcontainers;
+    # docker compose / scripts/seed.sh are only needed for manual smoke checks.
+    cargo test --workspace --tests -- --include-ignored
 fi
 
 step "OK"
