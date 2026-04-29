@@ -2,6 +2,7 @@
 //! and format results — the layer rule keeps business logic in `kqr-core`.
 
 pub mod sample;
+pub mod schema;
 pub mod topics;
 
 use std::time::Duration;

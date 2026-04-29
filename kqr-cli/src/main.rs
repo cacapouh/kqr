@@ -19,9 +19,12 @@ async fn main() -> anyhow::Result<()> {
         Some(Command::Sample(args)) => {
             commands::sample::run(args, &require_profile(profile, "sample")?).await
         }
+        Some(Command::Schema(args)) => {
+            commands::schema::run(args, &require_profile(profile, "schema")?).await
+        }
         Some(Command::Topics) => commands::topics::run(&require_profile(profile, "topics")?).await,
-        Some(Command::Schema(_)) | Some(Command::Query(_)) | Some(Command::Repl(_)) => {
-            bail!("subcommand not implemented yet (will land in step 4-7)")
+        Some(Command::Query(_)) | Some(Command::Repl(_)) => {
+            bail!("subcommand not implemented yet (will land in step 5-7)")
         }
         None => {
             println!(

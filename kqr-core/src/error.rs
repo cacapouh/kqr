@@ -49,6 +49,24 @@ pub enum Error {
     #[error("kafka: time window resolved to empty range (no offsets)")]
     KafkaEmptyWindow,
 
+    // ---- decode ---------------------------------------------------------
+    #[error("decode: {0}")]
+    Decode(String),
+    #[error("decode: schema inference failed (no usable JSON samples)")]
+    DecodeSchemaInferEmpty,
+    #[error("decode: not valid JSON: {0}")]
+    DecodeJson(#[from] serde_json::Error),
+
+    // ---- arrow / datafusion ---------------------------------------------
+    #[error("arrow: {0}")]
+    Arrow(#[from] arrow::error::ArrowError),
+    #[error("datafusion: {0}")]
+    DataFusion(#[from] datafusion::error::DataFusionError),
+
+    // ---- query ----------------------------------------------------------
+    #[error("query: {0}")]
+    Query(String),
+
     // ---- internal -------------------------------------------------------
     #[error("background task: {0}")]
     TaskJoin(String),

@@ -14,12 +14,18 @@ futures = { workspace = true }
 
 # Serde / config
 serde = { workspace = true }
+serde_json = { workspace = true }
 toml = { workspace = true }
 humantime = { workspace = true }
 chrono = { workspace = true }
 dirs = { workspace = true }
 
-# Kafka (infra/kafka only — see DESIGN.md layer rule)
+# Arrow / DataFusion (step 4+)
+arrow = { workspace = true }
+arrow-json = { workspace = true }
+datafusion = { workspace = true }
+
+# Kafka (infra/kafka only)
 rdkafka = { workspace = true }
 
 # Logging / errors
