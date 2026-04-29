@@ -205,3 +205,63 @@ kqr-core/src/
 - topic ごとの schema 戦略を JSON 以外で頑張る (今回は JSON のみ)
 - 認証 / multi-tenant の作り込み (CLI なので不要)
 - Kafka を毎回フルスキャン (window と limit を必ず尊重)
+- `rdkafka` を `kqr-core/src/infra/kafka/` の外で `use` する (後述のレイヤー分離違反)
+
+---
+
+## 追加決定事項 (要望リスト 反映)
+
+### A. App 層 / Infra 層 の分離
+
+`kqr-core` 内部を 2 層に分ける。`rdkafka` などの外部 I/O は infra 層に閉じ込める。
+
+```
+kqr-core/src/
+  lib.rs
+  error.rs
+  config.rs              # 設定読み込み (env / file)
+  app/                   # application layer — pure logic
+    mod.rs
+    decode/              # trait MessageDecoder + JsonDecoder
+    table.rs             # RecordBatch → MemTable
+    cache.rs             # Parquet cache 層 (Parquet I/O は ports 経由)
+    query.rs             # SessionContext + execute
+    output.rs            # 出力フォーマット
+  infra/                 # infrastructure layer — external I/O
+    mod.rs
+    kafka/
+      mod.rs             # pub trait KafkaSource (port)
+      consumer.rs        # rdkafka 実装 (rdkafka 依存はここだけ)
+      window.rs          # TimeWindow enum
+    fs/                  # 必要に応じて Parquet/設定ファイル I/O 実装
+```
+
+**強制ルール**:
+
+- `rdkafka::*` の `use` を許すのは `kqr-core/src/infra/kafka/` 配下のみ
+- application 層は `infra::kafka::KafkaSource` (もしくはそれに類する port trait) 越しにしか Kafka に触らない
+- 同様に Parquet 読み書き / 設定ファイル I/O も infra 配置とする
+
+**目的**: セキュリティ監査のとき `infra/` だけ読めば「kqr が Kafka に対して何をしているか」が網羅できる状態を保つ。external I/O が散らばっていない、という保証。
+
+(将来 `cargo deny` または手書きの check で 「app 層から rdkafka を使ったら fail」 を機械的に強制する。)
+
+### B. クエリ形式 — SQL (DataFusion) で確定
+
+集計性能を優先して SQL を採用する (jq 形式は不採用)。理由:
+
+- DataFusion は SQL を Arrow RecordBatch 上のベクトル化オペレータに compile し、列指向 + マルチコア並列で動く。aggregate / group-by / join の典型ワークロードで行指向 jq 比 10–100× のスループット差が出る (Arrow / DataFusion ベンチ、TPC-H 文献)。
+- jq は単一スレッドの行ごと JSON インタプリタ。projection / filter は速いが集計が弱く、kqr の主用途 (group by, count, sum, distinct, JOIN across topics) ではボトルネックになる。
+- SQL の方言知識を流用できる UX 上の利点も SQL 側にある。
+
+実証は step 8 の integration test 兼ベンチで行う (`docker compose` の Kafka に既知の JSON を投入 → 集計クエリのスループット計測)。
+
+### C. ベンチマーク / 動作チェック基盤
+
+- `docker/compose.yaml` — 開発用 single-broker Kafka (KRaft)。`docker compose -f docker/compose.yaml up -d --wait` で起動
+- `scripts/seed.sh` — 既知 JSON データセットを topic に投入 (手動確認 / bench 入力用)
+- `scripts/check.sh` — `cargo fmt --check && build && test && clippy -D warnings` を順に流す
+  - `--if-changed` … HEAD と比較して `*.rs` / `*.toml` / `Cargo.lock` に差分がない時はスキップ
+  - `--integration` … docker Kafka を起動 (本物の integration test は step 8 で実装)
+- `.claude/settings.json` の Stop hook が毎ターン終了時に `scripts/check.sh --if-changed` を走らせる
+- 本格的な criterion ベンチは step 5 完了後に `bench/` を生やして実装する
