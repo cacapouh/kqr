@@ -20,6 +20,8 @@ futures = { workspace = true }
 # CLI
 clap = { workspace = true }
 indicatif = { workspace = true }
+rustyline = { workspace = true }
+dirs = { workspace = true }
 
 # Logging / errors
 anyhow = { workspace = true }

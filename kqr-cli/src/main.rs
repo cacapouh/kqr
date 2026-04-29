@@ -1,4 +1,4 @@
-use anyhow::{bail, Context};
+use anyhow::Context;
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
@@ -26,7 +26,9 @@ async fn main() -> anyhow::Result<()> {
         Some(Command::Query(args)) => {
             commands::query::run(args, &require_profile(profile, "query")?).await
         }
-        Some(Command::Repl(_)) => bail!("`kqr repl` lands in step 7"),
+        Some(Command::Repl(args)) => {
+            commands::repl::run(args, &require_profile(profile, "repl")?).await
+        }
         None => {
             println!(
                 "kqr {} (kqr-core {}) — run `kqr --help`",
