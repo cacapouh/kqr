@@ -24,10 +24,15 @@ dirs = { workspace = true }
 arrow = { workspace = true }
 arrow-json = { workspace = true }
 arrow-csv = { workspace = true }
+parquet = { workspace = true }
 datafusion = { workspace = true }
 
 # Output (step 5)
 comfy-table = { workspace = true }
+
+# Cache key hashing (step 6)
+sha2 = { workspace = true }
+hex = { workspace = true }
 
 # Kafka (infra/kafka only)
 rdkafka = { workspace = true }

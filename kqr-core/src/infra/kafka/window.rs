@@ -39,6 +39,28 @@ impl TimeWindow {
     pub fn default_last() -> Self {
         TimeWindow::Last(Self::DEFAULT_LAST)
     }
+
+    /// Stable string used for cache key hashing. The string deliberately does
+    /// **not** depend on wall-clock time: `Last(10m)` returns the same key at
+    /// T1 and T2 — the cache TTL handles staleness.
+    pub fn cache_token(&self) -> String {
+        match self {
+            TimeWindow::Last(d) => format!("last:{}s", d.as_secs()),
+            TimeWindow::Range { from, to } => format!(
+                "range:{}:{}",
+                from.timestamp_millis(),
+                to.map(|t| t.timestamp_millis().to_string())
+                    .unwrap_or_else(|| "open".to_string())
+            ),
+            TimeWindow::Offset { start, limit } => {
+                let s = match start {
+                    OffsetStart::Earliest => "earliest",
+                    OffsetStart::Latest => "latest",
+                };
+                format!("offset:{s}:{limit}")
+            }
+        }
+    }
 }
 
 /// Mirror of the CLI flag set, decoupled from `clap` so this lives in core.

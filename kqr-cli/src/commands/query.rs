@@ -2,7 +2,9 @@
 
 use std::io::{IsTerminal, Write};
 use std::sync::Arc;
+use std::time::Duration;
 
+use kqr_core::app::cache::ParquetCache;
 use kqr_core::app::decode::{JsonDecoder, MessageDecoder};
 use kqr_core::app::output::{write_batches, OutputFormat};
 use kqr_core::app::query::QueryEngine;
@@ -14,6 +16,9 @@ use tracing::warn;
 
 use crate::cli::{OutputFormat as CliOutputFormat, QueryArgs};
 use crate::commands::resolve_window;
+
+/// Default cache TTL when config doesn't specify (= DESIGN.md default 1h).
+const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(3600);
 
 pub async fn run(args: QueryArgs, profile: &Profile) -> anyhow::Result<()> {
     if args.topics.is_empty() {
@@ -28,6 +33,15 @@ pub async fn run(args: QueryArgs, profile: &Profile) -> anyhow::Result<()> {
         );
     }
 
+    let cache = if args.reuse && !args.no_reuse {
+        Some(ParquetCache::new(
+            ParquetCache::default_root(),
+            DEFAULT_CACHE_TTL,
+        ))
+    } else {
+        None
+    };
+
     let engine = QueryEngine::new();
     for topic in &args.topics {
         let (sql_name, was_changed) = sql_table_name(topic);
@@ -37,7 +51,16 @@ pub async fn run(args: QueryArgs, profile: &Profile) -> anyhow::Result<()> {
                 topic, sql_name
             );
         }
-        register_topic(&engine, profile, &args, topic, &sql_name, &window).await?;
+        register_topic(
+            &engine,
+            profile,
+            &args,
+            topic,
+            &sql_name,
+            &window,
+            cache.as_ref(),
+        )
+        .await?;
     }
 
     if args.explain {
@@ -62,7 +85,25 @@ async fn register_topic(
     topic: &str,
     sql_name: &str,
     window: &TimeWindow,
+    cache: Option<&ParquetCache>,
 ) -> anyhow::Result<()> {
+    // Try cache first if enabled.
+    if let Some(c) = cache {
+        let key = c.key_path(&profile.brokers, topic, window);
+        if let Some(batches) = c.read(&key)? {
+            tracing::info!(topic = topic, "cache hit at {}", key.display());
+            if let Some(first) = batches.first() {
+                let schema = first.schema();
+                let mut builder = TableBuilder::new(schema);
+                for b in batches {
+                    builder.push(b);
+                }
+                engine.register_table(sql_name, builder.build()?)?;
+                return Ok(());
+            }
+        }
+    }
+
     let source = RdkafkaSource::new(profile, args.consume.consumer_group_id.as_deref())?;
     let (tx, mut rx) = mpsc::channel::<RawMessage>(1024);
 
@@ -93,6 +134,15 @@ async fn register_topic(
     let sample_n = args.consume.schema_sample.min(payloads.len()).max(1);
     let schema = decoder.infer_schema(&payloads[..sample_n])?;
     let batch = decoder.decode_batch(Arc::clone(&schema), &payloads)?;
+
+    // Persist to cache before building MemTable so a cache failure doesn't
+    // poison the live query.
+    if let Some(c) = cache {
+        let key = c.key_path(&profile.brokers, topic, window);
+        if let Err(e) = c.write(&key, Arc::clone(&schema), std::slice::from_ref(&batch)) {
+            warn!("cache write failed at {}: {e}", key.display());
+        }
+    }
 
     let mut builder = TableBuilder::new(schema);
     builder.push(batch);

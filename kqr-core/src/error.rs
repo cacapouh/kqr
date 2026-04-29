@@ -69,6 +69,10 @@ pub enum Error {
     #[error("output: {0}")]
     Output(String),
 
+    // ---- cache / parquet ------------------------------------------------
+    #[error("parquet: {0}")]
+    Parquet(#[from] parquet::errors::ParquetError),
+
     // ---- internal -------------------------------------------------------
     #[error("background task: {0}")]
     TaskJoin(String),

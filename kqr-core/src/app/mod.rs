@@ -4,6 +4,7 @@
 //! `rdkafka`, the filesystem, or the network directly. This makes the infra
 //! layer the single audit surface for external interactions.
 
+pub mod cache;
 pub mod decode;
 pub mod output;
 pub mod query;
