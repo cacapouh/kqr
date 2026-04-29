@@ -1,0 +1,20 @@
+[workspace]
+members = ["kqr-core", "kqr-cli"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0 OR MIT"
+rust-version = "1.81"
+
+[workspace.dependencies]
+kqr-core = { path = "kqr-core", version = "0.1.0" }
+
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+thiserror = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
