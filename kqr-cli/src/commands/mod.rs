@@ -1,6 +1,7 @@
 //! Subcommand handlers. Thin shims that translate clap args into core calls
 //! and format results — the layer rule keeps business logic in `kqr-core`.
 
+pub mod query;
 pub mod sample;
 pub mod schema;
 pub mod topics;

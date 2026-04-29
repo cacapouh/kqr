@@ -23,9 +23,10 @@ async fn main() -> anyhow::Result<()> {
             commands::schema::run(args, &require_profile(profile, "schema")?).await
         }
         Some(Command::Topics) => commands::topics::run(&require_profile(profile, "topics")?).await,
-        Some(Command::Query(_)) | Some(Command::Repl(_)) => {
-            bail!("subcommand not implemented yet (will land in step 5-7)")
+        Some(Command::Query(args)) => {
+            commands::query::run(args, &require_profile(profile, "query")?).await
         }
+        Some(Command::Repl(_)) => bail!("`kqr repl` lands in step 7"),
         None => {
             println!(
                 "kqr {} (kqr-core {}) — run `kqr --help`",

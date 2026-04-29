@@ -5,4 +5,6 @@
 //! layer the single audit surface for external interactions.
 
 pub mod decode;
+pub mod output;
+pub mod query;
 pub mod table;

@@ -23,7 +23,11 @@ dirs = { workspace = true }
 # Arrow / DataFusion (step 4+)
 arrow = { workspace = true }
 arrow-json = { workspace = true }
+arrow-csv = { workspace = true }
 datafusion = { workspace = true }
+
+# Output (step 5)
+comfy-table = { workspace = true }
 
 # Kafka (infra/kafka only)
 rdkafka = { workspace = true }

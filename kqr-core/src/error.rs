@@ -63,9 +63,11 @@ pub enum Error {
     #[error("datafusion: {0}")]
     DataFusion(#[from] datafusion::error::DataFusionError),
 
-    // ---- query ----------------------------------------------------------
+    // ---- query / output -------------------------------------------------
     #[error("query: {0}")]
     Query(String),
+    #[error("output: {0}")]
+    Output(String),
 
     // ---- internal -------------------------------------------------------
     #[error("background task: {0}")]
