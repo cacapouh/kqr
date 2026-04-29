@@ -258,10 +258,86 @@ kqr-core/src/
 
 ### C. ベンチマーク / 動作チェック基盤
 
-- `docker/compose.yaml` — 開発用 single-broker Kafka (KRaft)。`docker compose -f docker/compose.yaml up -d --wait` で起動
+- `docker/compose.yaml` — 開発用 single-broker Kafka (KRaft)。
+  - host listener: `localhost:9092`
+  - docker network listener: `kafka:9094` (docker run / compose run の kqr 用)
+  - `docker compose -f docker/compose.yaml up -d --wait` で起動
 - `scripts/seed.sh` — 既知 JSON データセットを topic に投入 (手動確認 / bench 入力用)
 - `scripts/check.sh` — `cargo fmt --check && build && test && clippy -D warnings` を順に流す
   - `--if-changed` … HEAD と比較して `*.rs` / `*.toml` / `Cargo.lock` に差分がない時はスキップ
   - `--integration` … docker Kafka を起動 (本物の integration test は step 8 で実装)
 - `.claude/settings.json` の Stop hook が毎ターン終了時に `scripts/check.sh --if-changed` を走らせる
 - 本格的な criterion ベンチは step 5 完了後に `bench/` を生やして実装する
+
+### D. 追加 CLI フラグ (実体は step 3+)
+
+時間窓フラグの追加と consumer group の opt-in 対応。`kqr query` / `repl` /
+`schema` / `sample` の共通フラグとして以下を実装する。
+
+- **`--from <time>`** — 開始時刻 (絶対)。RFC3339 文字列 (`2026-04-29T10:00:00Z`)。
+  内部的には `offsets_for_times` で各パーティションの開始 offset に解決する。
+- **`--to <time>`** — 終了時刻 (絶対)。同上。
+- **`--since <time>`** — 開始時刻を「現在から見て」指定。以下のいずれか:
+  - humantime duration (`10m`, `2h`, `1d`) → `now - 10m` 起点
+  - RFC3339 absolute → `--from` と等価
+  - 終端は今の clock 時刻 (= `--to now`)。`--last` の親戚 alias。
+- **`--last <duration>`** — 既存仕様維持。`--since 10m` と semantically 同じ。
+- **`--offset earliest|latest --limit <N>`** — 既存。
+- **排他**: `{--last | --since [+--to] | --from --to | --offset --limit}` のうち
+  どれか 1 グループのみ。同時指定はエラー。デフォルトは `--last 10m`。
+
+- **`--consumer-group-id <id>`** — 指定時のみ consumer group に join し、
+  Kafka に offset を commit する。**省略時のデフォルトは従来通り `assign` +
+  `offsets_for_times` (group 不使用、副作用なし)**。指定時は副作用 (offset commit) を
+  伴うため、stderr に warning を1行出す。
+- **`--progress`** — 消費進捗を表示する。
+  - TTY 出力: `indicatif` で 1 行スピナー (経過時間 / 受信メッセージ数 / 進捗バー)。
+    出力テーブルとは stderr に分離して表示が崩れないようにする。
+  - Non-TTY 出力 (パイプ / リダイレクト): デフォルト 5 秒に 1 回 `[progress] ...` 行を
+    stderr に出す。`--progress-interval <duration>` で間隔調整可。
+  - 過剰出力対策: 1 秒に 1 回より速くは更新しない、結果 stdout と progress stderr を
+    必ず分けることで `kqr ... > out.csv` がノイズ無し。
+
+`offsets_for_times` を使う以上、`--from` / `--since` は kafka log retention の範囲内
+でしか機能しない。範囲外の指定はエラーではなく、利用可能な最古 offset から開始した
+旨を warning に出す。
+
+### E. Dockerfile / `docker run` 配布 (追加要望2)
+
+ルートに **multi-stage `Dockerfile`** を配置。
+
+- Builder: `rust:1.91-slim-bookworm` + librdkafka system deps (cmake, libsasl2-dev,
+  libssl-dev, libzstd-dev, zlib1g-dev) を事前 install。step 3 で rdkafka が入っても
+  Dockerfile 改修不要にする forward-compat 設計。
+- Runtime: `debian:bookworm-slim` + ランタイム so (libsasl2-2, libssl3, libzstd1) +
+  非 root user (`kqr` UID 10001)。`ENTRYPOINT ["kqr"]`、`CMD ["--help"]`。
+- ビルドキャッシュは `Cargo.lock` 含めた `--locked` で再現性確保。`strip` でサイズ削減。
+
+**使い方**:
+
+```bash
+docker build -t kqr:dev .
+docker run --rm kqr:dev --help
+
+# Linux: ホストの Kafka に直結
+docker run --rm --network host kqr:dev query -t demo --last 1m "select count(*) from demo"
+
+# macOS / Windows: ホストの Kafka に host-gateway 経由
+docker run --rm --add-host host.docker.internal:host-gateway kqr:dev \
+    query -t demo --brokers host.docker.internal:9092 ...
+
+# docker compose の Kafka に直結 (DOCKER listener: kafka:9094 を使う)
+docker compose -f docker/compose.yaml up -d --wait
+docker run --rm --network kqr_default kqr:dev \
+    query -t demo --brokers kafka:9094 ...
+```
+
+`.dockerignore` で `target/` などビルドコンテキストから除外。
+
+### F. やってはいけないこと の訂正
+
+上の §A (やってはいけないこと) の以下の項目は **opt-in に格下げ**:
+
+- ~~consumer group を使った long-running 消費 (CLI の責務外)~~
+  → **デフォルトは consumer group を使わない**。`--consumer-group-id` 明示時のみ
+  join し、その場合は offset commit が副作用として発生することを stderr に告知する。
