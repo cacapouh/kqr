@@ -3,33 +3,44 @@ use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
 mod cli;
+mod commands;
+mod progress;
 
-use cli::Cli;
+use cli::{Cli, Command};
+use kqr_core::infra::config::Profile;
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     init_tracing(cli.verbose);
 
-    // Resolve the active profile, if any, so we can fail early on bad config.
     let profile = resolve_profile(&cli)?;
-    if let Some(p) = &profile {
-        tracing::debug!(brokers = %p.brokers, "profile resolved");
-    }
-
-    match cli.command {
-        Some(cmd) => bail!(
-            "`kqr {}` is not implemented yet (will be added in step 3+)",
-            cmd.name()
-        ),
+    let exit = match cli.command.clone() {
+        Some(Command::Sample(args)) => {
+            commands::sample::run(args, &require_profile(profile, "sample")?).await
+        }
+        Some(Command::Topics) => commands::topics::run(&require_profile(profile, "topics")?).await,
+        Some(Command::Schema(_)) | Some(Command::Query(_)) | Some(Command::Repl(_)) => {
+            bail!("subcommand not implemented yet (will land in step 4-7)")
+        }
         None => {
             println!(
                 "kqr {} (kqr-core {}) — run `kqr --help`",
                 env!("CARGO_PKG_VERSION"),
                 kqr_core::version()
             );
-            Ok(())
+            return Ok(());
         }
-    }
+    };
+    exit
+}
+
+fn require_profile(p: Option<Profile>, cmd: &str) -> anyhow::Result<Profile> {
+    p.ok_or_else(|| {
+        anyhow::anyhow!(
+            "`kqr {cmd}` needs Kafka brokers — pass --brokers or set up a profile in ~/.config/kqr/config.toml"
+        )
+    })
 }
 
 fn init_tracing(verbose: u8) {
@@ -47,10 +58,8 @@ fn init_tracing(verbose: u8) {
         .init();
 }
 
-/// Returns `Some(Profile)` if a config exists or brokers/--profile is set,
-/// else `None` (commands that don't touch Kafka can run without a profile).
-fn resolve_profile(cli: &Cli) -> anyhow::Result<Option<kqr_core::infra::config::Profile>> {
-    use kqr_core::infra::config::{Config, Profile};
+fn resolve_profile(cli: &Cli) -> anyhow::Result<Option<Profile>> {
+    use kqr_core::infra::config::Config;
 
     let cfg = match &cli.config {
         Some(path) => Some(
@@ -67,13 +76,14 @@ fn resolve_profile(cli: &Cli) -> anyhow::Result<Option<kqr_core::infra::config::
         },
     };
 
-    // If --brokers was given without a profile, synthesize an inline one so
-    // every code path downstream sees a Profile.
     if let Some(brokers) = &cli.brokers {
-        return Ok(Some(Profile {
-            brokers: brokers.clone(),
-            ..Profile::default()
-        }));
+        // CLI override beats profile entirely.
+        let mut base = match (&cfg, &cli.profile) {
+            (Some(c), name) => c.select_profile(name.as_deref()).unwrap_or_default(),
+            _ => Profile::default(),
+        };
+        base.brokers = brokers.clone();
+        return Ok(Some(base));
     }
 
     let Some(cfg) = cfg else {

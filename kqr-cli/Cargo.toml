@@ -13,10 +13,20 @@ path = "src/main.rs"
 [dependencies]
 kqr-core = { workspace = true }
 
+# Async / runtime
+tokio = { workspace = true }
+futures = { workspace = true }
+
 # CLI
 clap = { workspace = true }
+indicatif = { workspace = true }
 
 # Logging / errors
 anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+
+# Output
+serde_json = { workspace = true }
+chrono = { workspace = true }
+humantime = { workspace = true }

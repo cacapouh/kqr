@@ -1,8 +1,9 @@
 //! Infrastructure layer — external I/O.
 //!
-//! - [`config`]: reads `~/.config/kqr/config.toml` from disk and resolves
-//!   `${ENV}` placeholders.
-//! - `kafka` (added in step 3): the only place in the workspace that imports
-//!   from `rdkafka`. Application code calls [`kafka::KafkaSource`] traits.
+//! Layer rule (see DESIGN.md §A): every external interaction lives here. The
+//! application layer reaches Kafka only via traits exposed in [`kafka`]. An
+//! audit reading just `infra/` is therefore complete with respect to network
+//! and disk side effects.
 
 pub mod config;
+pub mod kafka;

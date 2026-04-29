@@ -7,15 +7,24 @@ rust-version.workspace = true
 description = "Core library for kqr — query Kafka topics with SQL"
 
 [dependencies]
-# Serde / config (step 2)
+# Async / runtime
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+# Serde / config
 serde = { workspace = true }
 toml = { workspace = true }
 humantime = { workspace = true }
+chrono = { workspace = true }
 dirs = { workspace = true }
 
+# Kafka (infra/kafka only — see DESIGN.md layer rule)
+rdkafka = { workspace = true }
+
 # Logging / errors
-thiserror = { workspace = true }
 tracing = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

@@ -36,7 +36,7 @@ pub struct Cli {
     pub command: Option<Command>,
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Debug, Clone, Subcommand)]
 pub enum Command {
     /// Run a one-shot SQL query against one or more topics.
     Query(QueryArgs),
@@ -48,19 +48,6 @@ pub enum Command {
     Sample(SampleArgs),
     /// List Kafka topics.
     Topics,
-}
-
-impl Command {
-    /// Short, kebab-case-ish name for diagnostics.
-    pub fn name(&self) -> &'static str {
-        match self {
-            Command::Query(_) => "query",
-            Command::Repl(_) => "repl",
-            Command::Schema(_) => "schema",
-            Command::Sample(_) => "sample",
-            Command::Topics => "topics",
-        }
-    }
 }
 
 /// Time-window flags shared by `query` / `repl` / `schema` / `sample`.
