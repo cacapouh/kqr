@@ -9,11 +9,52 @@ license = "Apache-2.0 OR MIT"
 rust-version = "1.81"
 
 [workspace.dependencies]
+# Internal
 kqr-core = { path = "kqr-core", version = "0.1.0" }
 
-clap = { version = "4", features = ["derive"] }
+# Async runtime / utility
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time", "signal"] }
+async-trait = "0.1"
+futures = "0.3"
+
+# CLI / output
+clap = { version = "4", features = ["derive", "env"] }
+rustyline = "14"
+comfy-table = "7"
+indicatif = "0.17"
+
+# Serde / config
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+humantime = "2"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+dirs = "5"
+
+# Arrow / DataFusion / Parquet (must share the same arrow major)
+arrow = "53"
+arrow-json = "53"
+arrow-csv = "53"
+parquet = { version = "53", default-features = false, features = ["arrow", "snap", "zstd"] }
+datafusion = "44"
+
+# Kafka
+rdkafka = { version = "0.36" }
+
+# Logging / errors
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1"
 thiserror = "1"
+
+# Hashing for cache keys
+sha2 = "0.10"
+hex = "0.4"
+
+# Test deps
+testcontainers = "0.23"
+testcontainers-modules = { version = "0.11", features = ["kafka"] }
+tempfile = "3"
 
 [profile.release]
 lto = "thin"

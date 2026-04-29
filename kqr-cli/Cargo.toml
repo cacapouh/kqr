@@ -12,5 +12,11 @@ path = "src/main.rs"
 
 [dependencies]
 kqr-core = { workspace = true }
+
+# CLI
 clap = { workspace = true }
+
+# Logging / errors
 anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

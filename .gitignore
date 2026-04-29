@@ -6,3 +6,6 @@
 
 # Claude Code 個人ローカル設定 (権限など) は共有しない
 .claude/settings.local.json
+
+# user-managed scratchpad
+要望リスト.md
